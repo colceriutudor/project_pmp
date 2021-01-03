@@ -1,22 +1,64 @@
+#include <SoftwareSerial.h>
+
+SoftwareSerial serialPins(5, 6);
+
 const int BUZZER_PIN = 8;
 const int TRIG_PIN = 9;
 const int ECHO_PIN = 10;
 
 long duration;
 
+int distance, ok;
+int reservedParkingSpot_wifi, vehicleParked_wifi;
+
+uint32_t oldtime;
+
 bool vehicleParked;
 
-int ok;
+void distanceSensorSetup() {
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+}
+
+void buzzerSetup() {
+  pinMode (BUZZER_PIN, OUTPUT) ;
+}
+
+void initVariables() {
+  vehicleParked = false;
+  vehicleParked_wifi = false;
+  reservedParkingSpot_wifi = false;
+}
 
 void setup ()
 {
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+  initVariables();
 
-  pinMode (BUZZER_PIN, OUTPUT) ;
+  distanceSensorSetup();
+
+  buzzerSetup();
 
   serialPins.begin(9600);
   Serial.begin(9600);
+}
+
+void alarm() {
+  unsigned char i, j ;
+
+  for (i = 0; i < 80; i++) // When a frequency sound
+  {
+    digitalWrite (BUZZER_PIN, HIGH) ; //send tone
+    delay (1) ;
+    digitalWrite (BUZZER_PIN, LOW) ; //no tone
+    delay (1) ;
+  }
+  for (i = 0; i < 100; i++)
+  {
+    digitalWrite (BUZZER_PIN, HIGH) ;
+    delay (2) ;
+    digitalWrite (BUZZER_PIN, LOW) ;
+    delay (2) ;
+  }
 }
 
 void initDistanceSensor() {
@@ -33,43 +75,17 @@ float getDistance() {
   return (duration * 0.034 / 2);
 }
 
-void alarm() {
-  unsigned char i, j ;
-
-  for (i = 0; i < 80; i++)
-  {
-    digitalWrite (BUZZER_PIN, HIGH);
-    delay (1) ;
-    digitalWrite (BUZZER_PIN, LOW);
-    delay (1) ;
+void readSerialData() {
+  if (serialPins.available() > 0) {
+    reservedParkingSpot_wifi = serialPins.read();
+    vehicleParked_wifi = serialPins.read();
   }
-  for (i = 0; i < 100; i++)
-  {
-    digitalWrite (BUZZER_PIN, HIGH);
-    delay (2);
-    digitalWrite (BUZZER_PIN, LOW);
-    delay (2);
-  }
-  
-  ok = 1;
 }
 
-void alarm() {
-  unsigned char i, j ;
-
-  for (i = 0; i < 80; i++)
-  {
-    digitalWrite (BUZZER_PIN, HIGH);
-    delay (1) ;
-    digitalWrite (BUZZER_PIN, LOW);
-    delay (1) ;
-  }
-  for (i = 0; i < 100; i++)
-  {
-    digitalWrite (BUZZER_PIN, HIGH);
-    delay (2);
-    digitalWrite (BUZZER_PIN, LOW);
-    delay (2);
+void count() {
+  if (ok == 0) {
+    oldtime = millis();
+    ok = 1;
   }
 }
 
@@ -77,14 +93,43 @@ void loop ()
 {
   float distance = getDistance();
 
-  while (distance < 10) {
-    alarm();
-	getDistance();
+  if (distance < 10) {
+    vehicleParked = true;
+    count();
   }
   else if (distance >= 10) {
     ok = 0;
+    vehicleParked = false;
     digitalWrite (BUZZER_PIN, LOW) ;
   }
+
+  while (vehicleParked == true) {
+
+    readSerialData();
+
+    if (reservedParkingSpot_wifi == true) {
+      alarm();
+      distance = getDistance();
+    }
+    else {
+      Serial.println((millis() - oldtime) / 1000);
+
+      if ((millis() - oldtime) / 1000 > 60) {
+        alarm();
+      }
+
+      distance = getDistance();
+    }
+
+    if (distance >= 10 || (vehicleParked_wifi == true && reservedParkingSpot_wifi == false)) {
+      oldtime = millis();
+      break;
+    }
+  }
+
+  Serial.println("OUT");
+
+  readSerialData();
 
   delay(1000);
 }
