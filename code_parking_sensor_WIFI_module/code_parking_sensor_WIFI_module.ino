@@ -2,8 +2,8 @@
 #include <SoftwareSerial.h>
 SoftwareSerial serialPins(D6, D5);
 
-const char* ssid = "eSkyNet";
-const char* password = "CccTcD-Link-eNet1";
+const char* ssid = "";
+const char* password = "";
 
 WiFiServer server(80);
 WiFiClient client;
